@@ -1,0 +1,55 @@
+import { useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Camera, CheckCircle2, Clock3, ExternalLink, MapPin, Upload, WalletCards } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { api, errorMessage } from "@/lib/api";
+import type { Assignment } from "@/types";
+import { assetUrl, formatCurrency, formatDateTime } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { EmptyState, ErrorState, LoadingState } from "@/components/common/AsyncState";
+import { StatusBadge } from "@/components/common/StatusBadge";
+
+const getAssignments = async () => (await api.get<{ data: Assignment[] }>("/staff/me/assignments")).data.data;
+
+export const StaffDashboardPage = () => {
+  const query = useQuery({ queryKey: ["staff-assignments-today"], queryFn: async () => (await api.get<{ data: Assignment[] }>("/staff/me/assignments/today")).data.data });
+  return <div><div><h2 className="text-2xl font-bold">Ca làm việc hôm nay</h2><p className="mt-1 text-sm text-slate-500">Kiểm tra địa điểm và chuẩn bị ảnh hiện trường trước khi bắt đầu.</p></div><div className="mt-6">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message={errorMessage(query.error)} /> : !query.data?.length ? <EmptyState message="Hôm nay bạn không có ca làm việc." /> : <div className="grid gap-4 lg:grid-cols-2">{query.data.map((item) => <AssignmentCard key={item.id} item={item} />)}</div>}</div></div>;
+};
+
+const AssignmentCard = ({ item }: { item: Assignment }) => <Card><CardContent><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.title}</h3><p className="mt-1 text-sm text-slate-500">{item.contract.contractCode} · {item.contract.hostName}</p></div><StatusBadge status={item.status} /></div><div className="mt-5 space-y-2 text-sm text-slate-600"><div className="flex gap-2"><Clock3 className="h-4 w-4 text-primary-700" />{formatDateTime(item.startTime)} - {formatDateTime(item.endTime)}</div><div className="flex gap-2"><MapPin className="h-4 w-4 shrink-0 text-primary-700" />{item.contract.formattedAddress || item.contract.address}</div></div><Button asChild className="mt-5 w-full" variant="secondary"><Link to={`/staff/assignments/${item.id}`}>Xem chi tiết</Link></Button></CardContent></Card>;
+
+export const StaffAssignmentsPage = () => {
+  const query = useQuery({ queryKey: ["staff-assignments"], queryFn: getAssignments });
+  return <div><h2 className="text-2xl font-bold">Lịch làm việc</h2><p className="mt-1 text-sm text-slate-500">Các ca được quản trị viên phân công cho bạn.</p><div className="mt-6">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message={errorMessage(query.error)} /> : !query.data?.length ? <EmptyState /> : <div className="grid gap-4 xl:grid-cols-2">{query.data.map((item) => <AssignmentCard key={item.id} item={item} />)}</div>}</div></div>;
+};
+
+export const StaffAssignmentDetailPage = () => {
+  const { id } = useParams();
+  const query = useQuery({ queryKey: ["staff-assignment", id], queryFn: async () => (await api.get<{ data: Assignment }>(`/assignments/${id}`)).data.data });
+  if (query.isLoading) return <LoadingState />; if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} />;
+  const item = query.data;
+  const destination = item.contract.latitude && item.contract.longitude ? `${item.contract.latitude},${item.contract.longitude}` : item.contract.address;
+  return <div className="space-y-6"><div className="flex items-start justify-between gap-3"><div><h2 className="text-2xl font-bold">{item.title}</h2><p className="mt-1 text-sm text-slate-500">{item.contract.contractCode} · {item.contract.weddingPackage.name}</p></div><StatusBadge status={item.status} /></div><div className="grid gap-5 lg:grid-cols-2"><Card><CardHeader><h3 className="font-bold">Thông tin ca</h3></CardHeader><CardContent className="space-y-4 text-sm"><div><span className="block text-xs text-slate-500">Thời gian</span><b>{formatDateTime(item.startTime)} - {formatDateTime(item.endTime)}</b></div><div><span className="block text-xs text-slate-500">Gia chủ</span><b>{item.contract.hostName} · {item.contract.hostPhone}</b></div><div><span className="block text-xs text-slate-500">Địa chỉ</span><b>{item.contract.formattedAddress || item.contract.address}</b></div><a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-semibold text-primary-700"><ExternalLink className="h-4 w-4" />Mở Google Maps</a><div><span className="block text-xs text-slate-500">Tiền công</span><b className="text-primary-700">{formatCurrency(item.wageAmount)}</b></div></CardContent></Card><Card><CardHeader><h3 className="font-bold">Thao tác hiện trường</h3></CardHeader><CardContent className="space-y-3">{item.status === "SCHEDULED" && <Button asChild className="w-full"><Link to={`/staff/assignments/${id}/check-in`}><Camera className="h-4 w-4" />Ảnh trước thi công và check-in</Link></Button>}{item.status === "CHECKED_IN" && <Button asChild className="w-full"><Link to={`/staff/assignments/${id}/check-out`}><CheckCircle2 className="h-4 w-4" />Ảnh bàn giao và check-out</Link></Button>}<Button asChild variant="secondary" className="w-full"><Link to={`/staff/assignments/${id}/damage`}>Báo cáo hư hại</Link></Button>{item.actualCheckin && <p className="text-sm text-slate-500">Check-in: {formatDateTime(item.actualCheckin)}</p>}{item.actualCheckout && <p className="text-sm text-slate-500">Check-out: {formatDateTime(item.actualCheckout)}</p>}</CardContent></Card></div><Card><CardHeader><h3 className="font-bold">Ảnh đã tải lên</h3></CardHeader><CardContent>{item.photos.length ? <div className="grid gap-3 sm:grid-cols-3">{item.photos.map((photo) => <a key={photo.id} href={assetUrl(photo.url)} target="_blank" rel="noreferrer"><img className="aspect-video w-full rounded-md object-cover" src={assetUrl(photo.url)} alt={photo.type} /><span className="mt-1 block text-xs text-slate-500">{photo.type}</span></a>)}</div> : <EmptyState message="Chưa có ảnh." />}</CardContent></Card></div>;
+};
+
+export const StaffCheckPage = ({ mode }: { mode: "check-in" | "check-out" }) => {
+  const { id } = useParams(); const navigate = useNavigate(); const client = useQueryClient(); const [file, setFile] = useState<File>(); const [message, setMessage] = useState("");
+  const mutation = useMutation({ mutationFn: async () => { if (!file) throw new Error("Vui lòng chọn ảnh."); const form = new FormData(); form.append("image", file); form.append("type", mode === "check-in" ? "BEFORE_SETUP" : "AFTER_SETUP"); await api.post(`/assignments/${id}/photos`, form); await api.post(`/assignments/${id}/${mode}`); }, onSuccess: () => { client.invalidateQueries({ queryKey: ["staff-assignment", id] }); navigate(`/staff/assignments/${id}`); }, onError: (reason) => setMessage(errorMessage(reason)) });
+  return <div className="mx-auto max-w-xl"><h2 className="text-2xl font-bold">{mode === "check-in" ? "Check-in trước thi công" : "Check-out sau bàn giao"}</h2><p className="mt-2 text-sm text-slate-500">Ảnh là bằng chứng bắt buộc và phải thể hiện rõ hiện trạng.</p><Card className="mt-6"><CardContent><label className="flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-primary-200 bg-primary-50 p-6 text-center"><Upload className="h-9 w-9 text-primary-700" /><span className="mt-3 font-semibold">Chọn ảnh JPG, PNG hoặc WebP</span><span className="mt-1 text-xs text-slate-500">Tối đa 8 MB</span><input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setFile(event.target.files?.[0])} /></label>{file && <p className="mt-3 text-sm text-primary-700">Đã chọn: {file.name}</p>}{message && <p className="mt-3 text-sm text-red-600">{message}</p>}<Button className="mt-5 w-full" disabled={!file || mutation.isPending} onClick={() => mutation.mutate()}>{mode === "check-in" ? "Tải ảnh và check-in" : "Tải ảnh và check-out"}</Button></CardContent></Card></div>;
+};
+
+export const StaffDamagePage = () => {
+  const { id } = useParams(); const navigate = useNavigate(); const [file, setFile] = useState<File>(); const [message, setMessage] = useState("");
+  const mutation = useMutation({ mutationFn: async (input: { description: string; quantity: number }) => { if (!file) throw new Error("Vui lòng chọn ảnh hư hại."); const form = new FormData(); form.append("image", file); form.append("type", "DAMAGE_ISSUE"); await api.post(`/assignments/${id}/photos`, form); return api.post(`/assignments/${id}/damages`, input); }, onSuccess: () => navigate(`/staff/assignments/${id}`), onError: (reason) => setMessage(errorMessage(reason)) });
+  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); mutation.mutate({ description: String(data.get("description")), quantity: Number(data.get("quantity")) }); };
+  return <div className="mx-auto max-w-xl"><h2 className="text-2xl font-bold">Báo cáo hư hại</h2><Card className="mt-6"><CardContent><form onSubmit={submit} className="space-y-4"><label><span className="field-label">Ảnh hư hại</span><input type="file" required accept="image/jpeg,image/png,image/webp" className="block w-full text-sm" onChange={(event) => setFile(event.target.files?.[0])} /></label><label><span className="field-label">Mô tả chi tiết</span><textarea required minLength={10} name="description" className="min-h-28 w-full rounded-md border border-slate-200 p-3 text-sm" /></label><label><span className="field-label">Số lượng</span><input required name="quantity" type="number" min="1" defaultValue="1" className="form-control" /></label>{message && <p className="text-sm text-red-600">{message}</p>}<Button className="w-full" disabled={mutation.isPending}>Gửi báo cáo</Button></form></CardContent></Card></div>;
+};
+
+interface Payroll { totalShifts: number; totalWage: number; assignments: Assignment[] }
+export const StaffPayrollPage = () => {
+  const query = useQuery({ queryKey: ["staff-payroll"], queryFn: async () => (await api.get<{ data: Payroll[] }>("/payroll")).data.data });
+  if (query.isLoading) return <LoadingState />; if (query.isError) return <ErrorState message={errorMessage(query.error)} />;
+  const data = query.data?.[0];
+  return <div><h2 className="text-2xl font-bold">Bảng công cá nhân</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><Card><CardContent><WalletCards className="h-6 w-6 text-primary-700" /><div className="mt-3 text-2xl font-bold">{data?.totalShifts || 0}</div><div className="text-sm text-slate-500">Ca đã hoàn thành</div></CardContent></Card><Card><CardContent><div className="text-sm text-slate-500">Tổng tiền công đủ điều kiện</div><div className="mt-3 text-2xl font-bold text-primary-700">{formatCurrency(data?.totalWage || 0)}</div></CardContent></Card></div></div>;
+};

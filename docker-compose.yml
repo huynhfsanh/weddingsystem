@@ -1,0 +1,93 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wedding_management}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-password}@mysql:3306/${MYSQL_DATABASE:-wedding_management}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:8080}
+      JWT_SECRET: ${JWT_SECRET:-change-this-access-secret-before-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-secret-before-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.3}
+      OPENAI_MAX_OUTPUT_TOKENS: ${OPENAI_MAX_OUTPUT_TOKENS:-800}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      GOOGLE_MAPS_SERVER_KEY: ${GOOGLE_MAPS_SERVER_KEY:-}
+      PAYOS_CLIENT_ID: ${PAYOS_CLIENT_ID:-}
+      PAYOS_API_KEY: ${PAYOS_API_KEY:-}
+      PAYOS_CHECKSUM_KEY: ${PAYOS_CHECKSUM_KEY:-}
+      CASSO_API_KEY: ${CASSO_API_KEY:-}
+      CASSO_CLIENT_ID: ${CASSO_CLIENT_ID:-}
+      CASSO_CHECKSUM_KEY: ${CASSO_CHECKSUM_KEY:-}
+      CASSO_WEBHOOK_SECRET: ${CASSO_WEBHOOK_SECRET:-}
+      CASSO_API_URL: ${CASSO_API_URL:-https://oauth.casso.vn/v2}
+      CASSO_ACCOUNT_NUMBER: ${CASSO_ACCOUNT_NUMBER:-}
+      CASSO_ACCOUNT_NAME: ${CASSO_ACCOUNT_NAME:-}
+      CASSO_BANK_NAME: ${CASSO_BANK_NAME:-}
+      PAYMENT_WEBHOOK_URL: ${PAYMENT_WEBHOOK_URL:-}
+      BUSINESS_NAME: ${BUSINESS_NAME:-Green Wedding}
+      BUSINESS_PHONE: ${BUSINESS_PHONE:-0799392717}
+      BUSINESS_EMAIL: ${BUSINESS_EMAIL:-hello@example.com}
+      BUSINESS_ADDRESS: ${BUSINESS_ADDRESS:-Điện Bàn Bắc, Đà Nẵng}
+      BUSINESS_REPRESENTATIVE: ${BUSINESS_REPRESENTATIVE:-Huỳnh Trần Sơn Sanh}
+      DEFAULT_DEPOSIT_RATE: ${DEFAULT_DEPOSIT_RATE:-50}
+      DEFAULT_CAPACITY_PER_DAY: ${DEFAULT_CAPACITY_PER_DAY:-3}
+      DEFAULT_ASSIGNMENT_BUFFER_MINUTES: ${DEFAULT_ASSIGNMENT_BUFFER_MINUTES:-30}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  uploads_data:

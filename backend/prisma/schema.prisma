@@ -1,0 +1,559 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleCode {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum CatalogType {
+  FOOD
+  SERVICE
+  DECORATION
+  EQUIPMENT
+  TRANSPORT
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_DEPOSIT
+  DEPOSITED
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  OVERPAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  DEPOSIT
+  REMAINING
+  REFUND
+}
+
+enum AssignmentStatus {
+  SCHEDULED
+  CHECKED_IN
+  CHECKED_OUT
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum PhotoType {
+  BEFORE_SETUP
+  AFTER_SETUP
+  DAMAGE_ISSUE
+}
+
+enum DamageStatus {
+  PENDING
+  REVIEWING
+  APPROVED
+  REJECTED
+  RESOLVED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  code        RoleCode @unique
+  name        String
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
+model User {
+  id              String       @id @default(cuid())
+  roleId          String       @map("role_id")
+  email           String       @unique
+  passwordHash    String       @map("password_hash")
+  fullName        String       @map("full_name")
+  phone           String?
+  avatarUrl       String?      @map("avatar_url")
+  status          UserStatus   @default(ACTIVE)
+  lastLoginAt     DateTime?    @map("last_login_at")
+  role            Role         @relation(fields: [roleId], references: [id])
+  contracts       WeddingContract[]
+  assignments     StaffAssignment[]
+  photos          AssignmentPhoto[]
+  damageReports   DamageReport[]
+  conversations   ChatbotConversation[]
+  notifications   Notification[]
+  supportRequests SupportRequest[]
+  contractSignatures ContractSignature[]
+  refreshTokens   RefreshToken[]
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@index([roleId, status])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt])
+  @@map("refresh_tokens")
+}
+
+model WeddingPackage {
+  id            String               @id @default(cuid())
+  name          String
+  slug          String               @unique
+  style         String
+  description   String               @db.Text
+  imageUrl      String?              @map("image_url")
+  basePrice     Decimal              @db.Decimal(14, 2) @map("base_price")
+  standardTables Int                 @map("standard_tables")
+  isFeatured    Boolean              @default(false) @map("is_featured")
+  isActive      Boolean              @default(true) @map("is_active")
+  packageItems  PackageCatalogItem[]
+  images        PackageImage[]
+  contracts     WeddingContract[]
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  @@index([isActive, isFeatured])
+  @@map("wedding_packages")
+}
+
+model PackageImage {
+  id             String         @id @default(cuid())
+  packageId      String         @map("package_id")
+  url            String         @db.VarChar(500)
+  altText        String?        @db.VarChar(255) @map("alt_text")
+  sortOrder      Int            @default(0) @map("sort_order")
+  isCover        Boolean        @default(false) @map("is_cover")
+  weddingPackage WeddingPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@index([packageId, sortOrder])
+  @@map("package_images")
+}
+
+model CatalogItem {
+  id           String               @id @default(cuid())
+  name         String
+  type         CatalogType
+  description  String?
+  imageUrl     String?              @map("image_url")
+  unit         String               @default("goi")
+  unitPrice    Decimal              @db.Decimal(14, 2) @map("unit_price")
+  isActive     Boolean              @default(true) @map("is_active")
+  packageItems PackageCatalogItem[]
+  contractItems ContractItem[]
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@index([type, isActive])
+  @@unique([name, type])
+  @@map("catalog_items")
+}
+
+model PackageCatalogItem {
+  id            String         @id @default(cuid())
+  packageId     String         @map("package_id")
+  catalogItemId String         @map("catalog_item_id")
+  quantity      Int            @default(1)
+  isRequired    Boolean        @default(false) @map("is_required")
+  weddingPackage WeddingPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  catalogItem   CatalogItem    @relation(fields: [catalogItemId], references: [id])
+
+  @@unique([packageId, catalogItemId])
+  @@map("package_catalog_items")
+}
+
+model WeddingContract {
+  id               String         @id @default(cuid())
+  contractCode     String         @unique @map("contract_code")
+  customerId       String         @map("customer_id")
+  packageId        String         @map("package_id")
+  menuComboId      String?        @map("menu_combo_id")
+  hostName         String         @map("host_name")
+  hostPhone        String         @map("host_phone")
+  tableCount       Int            @map("table_count")
+  setupDate        DateTime       @map("setup_date")
+  eventDate        DateTime       @map("event_date")
+  address          String
+  formattedAddress String?        @map("formatted_address")
+  latitude         Decimal?       @db.Decimal(10, 7)
+  longitude        Decimal?       @db.Decimal(10, 7)
+  placeId          String?        @map("place_id")
+  notes            String?        @db.Text
+  subtotal         Decimal        @db.Decimal(14, 2)
+  totalAmount      Decimal        @db.Decimal(14, 2) @map("total_amount")
+  depositRate      Decimal        @db.Decimal(5, 2) @map("deposit_rate")
+  depositAmount    Decimal        @db.Decimal(14, 2) @map("deposit_amount")
+  paidAmount       Decimal        @default(0) @db.Decimal(14, 2) @map("paid_amount")
+  remainingAmount  Decimal        @db.Decimal(14, 2) @map("remaining_amount")
+  status           ContractStatus @default(PENDING_DEPOSIT)
+  approvedAt       DateTime?      @map("approved_at")
+  customer         User           @relation(fields: [customerId], references: [id])
+  weddingPackage   WeddingPackage @relation(fields: [packageId], references: [id])
+  menuCombo        MenuCombo?     @relation(fields: [menuComboId], references: [id])
+  items            ContractItem[]
+  menuItems        ContractMenuItem[]
+  signature        ContractSignature?
+  payments         ContractPayment[]
+  assignments      StaffAssignment[]
+  damageReports    DamageReport[]
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@index([customerId, status])
+  @@index([eventDate, status])
+  @@map("wedding_contracts")
+}
+
+model MenuCombo {
+  id            String             @id @default(cuid())
+  code          String             @unique
+  name          String
+  groupName     String             @map("group_name")
+  description   String?
+  pricePerTable Decimal            @default(0) @db.Decimal(14, 2) @map("price_per_table")
+  sortOrder     Int                @default(0) @map("sort_order")
+  isActive      Boolean            @default(true) @map("is_active")
+  dishes        MenuDish[]
+  contracts     WeddingContract[]
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@map("menu_combos")
+}
+
+model MenuDish {
+  id           String             @id @default(cuid())
+  comboId      String             @map("combo_id")
+  name         String
+  referenceUrl String?            @db.VarChar(500) @map("reference_url")
+  imageUrl     String?            @db.VarChar(500) @map("image_url")
+  description  String?
+  sortOrder    Int                @default(0) @map("sort_order")
+  isActive     Boolean            @default(true) @map("is_active")
+  combo        MenuCombo          @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  contractItems ContractMenuItem[]
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@index([comboId, isActive, sortOrder])
+  @@map("menu_dishes")
+}
+
+model ContractMenuItem {
+  id               String          @id @default(cuid())
+  contractId       String          @map("contract_id")
+  sourceDishId     String?         @map("source_dish_id")
+  originalDishName String          @map("original_dish_name")
+  selectedDishName String          @map("selected_dish_name")
+  referenceUrl     String?         @db.VarChar(500) @map("reference_url")
+  imageUrl         String?         @db.VarChar(500) @map("image_url")
+  isReplacement    Boolean         @default(false) @map("is_replacement")
+  sortOrder        Int             @default(0) @map("sort_order")
+  contract         WeddingContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  sourceDish       MenuDish?       @relation(fields: [sourceDishId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, sortOrder])
+  @@map("contract_menu_items")
+}
+
+model ContractSignature {
+  id              String          @id @default(cuid())
+  contractId      String          @unique @map("contract_id")
+  signerId        String          @map("signer_id")
+  signerName      String          @map("signer_name")
+  signatureUrl    String          @db.VarChar(500) @map("signature_url")
+  documentHash    String          @db.VarChar(64) @map("document_hash")
+  consentVersion  String          @default("green-wedding-contract-v1") @map("consent_version")
+  ipAddress       String?         @map("ip_address")
+  userAgent       String?         @db.Text @map("user_agent")
+  signedAt        DateTime        @default(now()) @map("signed_at")
+  contract        WeddingContract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  signer          User            @relation(fields: [signerId], references: [id], onDelete: Restrict)
+
+  @@map("contract_signatures")
+}
+
+model ContractItem {
+  id            String          @id @default(cuid())
+  contractId    String          @map("contract_id")
+  catalogItemId String          @map("catalog_item_id")
+  itemName      String          @map("item_name")
+  itemType      CatalogType     @map("item_type")
+  unitPrice     Decimal         @db.Decimal(14, 2) @map("unit_price")
+  quantity      Int
+  lineTotal     Decimal         @db.Decimal(14, 2) @map("line_total")
+  contract      WeddingContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  catalogItem   CatalogItem     @relation(fields: [catalogItemId], references: [id])
+
+  @@index([contractId])
+  @@map("contract_items")
+}
+
+model ContractPayment {
+  id                String          @id @default(cuid())
+  contractId        String          @map("contract_id")
+  transactionCode   String          @unique @map("transaction_code")
+  transferContent   String          @unique @map("transfer_content")
+  type              PaymentType
+  expectedAmount    Decimal         @db.Decimal(14, 2) @map("expected_amount")
+  receivedAmount    Decimal         @default(0) @db.Decimal(14, 2) @map("received_amount")
+  status            PaymentStatus   @default(PENDING)
+  externalReference String?         @unique @map("external_reference")
+  paidAt            DateTime?       @map("paid_at")
+  metadata          Json?
+  contract          WeddingContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@index([contractId, status])
+  @@map("contract_payments")
+}
+
+model DailyCapacity {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  maxEvents Int      @map("max_events")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_capacities")
+}
+
+model StaffRate {
+  id          String            @id @default(cuid())
+  jobName     String            @unique @map("job_name")
+  description String?
+  amount      Decimal           @db.Decimal(14, 2)
+  isActive    Boolean           @default(true) @map("is_active")
+  assignments StaffAssignment[]
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@map("staff_rates")
+}
+
+model StaffAssignment {
+  id              String           @id @default(cuid())
+  contractId      String           @map("contract_id")
+  staffId         String           @map("staff_id")
+  staffRateId     String           @map("staff_rate_id")
+  title           String
+  startTime       DateTime         @map("start_time")
+  endTime         DateTime         @map("end_time")
+  wageAmount      Decimal          @db.Decimal(14, 2) @map("wage_amount")
+  status          AssignmentStatus @default(SCHEDULED)
+  actualCheckin   DateTime?        @map("actual_checkin")
+  actualCheckout  DateTime?        @map("actual_checkout")
+  completionNotes String?          @map("completion_notes")
+  paidAt          DateTime?        @map("paid_at")
+  paidById        String?          @map("paid_by_id")
+  contract        WeddingContract  @relation(fields: [contractId], references: [id])
+  staff           User             @relation(fields: [staffId], references: [id])
+  staffRate       StaffRate        @relation(fields: [staffRateId], references: [id])
+  photos          AssignmentPhoto[]
+  damageReports   DamageReport[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([staffId, startTime, endTime, status])
+  @@index([contractId])
+  @@map("staff_assignments")
+}
+
+model AssignmentPhoto {
+  id           String          @id @default(cuid())
+  assignmentId String          @map("assignment_id")
+  uploaderId   String          @map("uploader_id")
+  type         PhotoType
+  url          String
+  thumbnailUrl String?         @map("thumbnail_url")
+  note         String?
+  assignment   StaffAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  uploader     User            @relation(fields: [uploaderId], references: [id])
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([assignmentId, type])
+  @@map("assignment_photos")
+}
+
+model DamageReport {
+  id             String          @id @default(cuid())
+  contractId     String          @map("contract_id")
+  assignmentId   String          @map("assignment_id")
+  reporterId     String          @map("reporter_id")
+  description    String          @db.Text
+  quantity       Int             @default(1)
+  estimatedCost  Decimal?        @db.Decimal(14, 2) @map("estimated_cost")
+  approvedCost   Decimal?        @db.Decimal(14, 2) @map("approved_cost")
+  status         DamageStatus    @default(PENDING)
+  reviewNote     String?         @map("review_note")
+  contract       WeddingContract @relation(fields: [contractId], references: [id])
+  assignment     StaffAssignment @relation(fields: [assignmentId], references: [id])
+  reporter       User            @relation(fields: [reporterId], references: [id])
+  costItems      DamageCostItem[]
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("damage_reports")
+}
+
+model DamageCostItem {
+  id             String       @id @default(cuid())
+  damageReportId String       @map("damage_report_id")
+  description    String
+  amount         Decimal      @db.Decimal(14, 2)
+  damageReport   DamageReport @relation(fields: [damageReportId], references: [id], onDelete: Cascade)
+
+  @@map("damage_cost_items")
+}
+
+model CassoWebhookEvent {
+  id              String   @id @default(cuid())
+  externalEventId String   @unique @map("external_event_id")
+  payload         Json
+  signatureValid  Boolean  @map("signature_valid")
+  processed       Boolean  @default(false)
+  errorMessage    String?  @map("error_message")
+  createdAt       DateTime @default(now()) @map("created_at")
+  processedAt     DateTime? @map("processed_at")
+
+  @@map("casso_webhook_events")
+}
+
+model ChatbotConversation {
+  id        String           @id @default(cuid())
+  userId    String?          @map("user_id")
+  title     String           @default("Cuoc tro chuyen moi")
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages  ChatbotMessage[]
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@index([userId, updatedAt])
+  @@map("chatbot_conversations")
+}
+
+model ChatbotMessage {
+  id             String              @id @default(cuid())
+  conversationId String              @map("conversation_id")
+  role           ChatRole
+  content        String              @db.Text
+  conversation   ChatbotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("chatbot_messages")
+}
+
+model ChatbotFaq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  keywords  String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("chatbot_faqs")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      String
+  link      String?
+  readAt    DateTime? @map("read_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldData    Json?    @map("old_data")
+  newData    Json?    @map("new_data")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model SupportRequest {
+  id        String        @id @default(cuid())
+  userId    String?       @map("user_id")
+  name      String
+  email     String
+  phone     String?
+  message   String        @db.Text
+  status    SupportStatus @default(OPEN)
+  adminNote String?       @db.Text @map("admin_note")
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("support_requests")
+}
