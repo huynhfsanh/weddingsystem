@@ -488,6 +488,7 @@ model ChatbotMessage {
   conversationId String              @map("conversation_id")
   role           ChatRole
   content        String              @db.Text
+  media          Json?
   conversation   ChatbotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   createdAt      DateTime            @default(now()) @map("created_at")
 

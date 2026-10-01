@@ -21,13 +21,13 @@
 # Trạng thái hiện tại
 
 - Đã có đầy đủ nền tảng xác thực, RBAC, gói cưới, hợp đồng, capacity, thanh toán, phân ca, ảnh, hư hại, lương, chatbot, thông báo và audit.
-- Cloudinary và payOS đã được cấu hình trong môi trường local. FAQ và lưu ảnh local vẫn là chế độ thay thế khi thiếu tích hợp ngoài.
+- Cloudinary và payOS đã được cấu hình trong môi trường local. Lưu ảnh local vẫn là chế độ thay thế khi Cloudinary không hoạt động.
 - Seed tạo bốn tài khoản demo với mật khẩu `Wedding@123`.
 
 # Vấn đề đã biết
 
 - Docker Desktop chưa chạy trong lần kiểm tra ngày 2026-09-25 nên chưa kiểm thử container thực tế; `docker compose config` đã hợp lệ.
-- OpenAI và Google Maps chưa có khóa API; các nhánh fallback vẫn hoạt động.
+- OpenAI-compatible endpoint shupremium và Google Maps đã có cấu hình local; các nhánh fallback vẫn hoạt động.
 - Khóa bảo mật webhook Casso Flow chưa được cấu hình. Bộ `client id / API key / checksum key` hiện tại thuộc payOS và đã được tích hợp đúng theo SDK chính thức.
 - Webhook bên ngoài không thể gọi trực tiếp vào `localhost`; màn thanh toán có nút đồng bộ trạng thái payOS làm phương án local.
 
@@ -59,3 +59,7 @@
 - 2026-09-30: Sửa webhook payOS để payload thử có chữ ký hợp lệ nhận `200`, bổ sung lệnh `npm run payos:webhook` đăng ký URL HTTPS bằng SDK chính thức và tài liệu `docs/PAYOS_WEBHOOK.md`.
 - 2026-09-30: Sửa lỗi ký điện tử khi Cloudinary trả `403`; tầng lưu ảnh tự động chuyển sang `backend/uploads` để chữ ký, ảnh món và ảnh hiện trường vẫn hoạt động.
 - 2026-09-30: Thay logo biểu tượng trái tim bằng ảnh thương hiệu `frontend/src/assets/green-wedding-logo.jpg` thông qua component dùng chung `frontend/src/components/brand/BrandLogo.tsx` ở public, customer, admin/staff và auth.
+- 2026-10-01: Cấu hình chatbot với `gpt-4o-mini`, prompt tư vấn Green Wedding có quy tắc dữ liệu/an toàn/thanh toán và nạp thêm context combo thực đơn; hướng dẫn được lưu ở `docs/CHATBOT_PROMPT.md`.
+- 2026-10-01: Chatbot không còn dùng FAQ để trả lời; bổ sung nhận diện ý định/từ khóa và fallback từ dữ liệu MySQL để API hội thoại vẫn hoạt động khi AI lỗi.
+- 2026-10-01: Chatbot gửi ảnh gói cưới/món ăn theo câu hỏi, lưu media ở `chatbot_messages.media`, hiển thị ảnh trong Customer và hiển thị tin nhắn người dùng ngay lập tức trong lúc AI xử lý.
+- 2026-10-01: Hỗ trợ `OPENAI_BASE_URL` cho máy chủ OpenAI-compatible; cấu hình local hiện trỏ tới endpoint shupremium và vẫn giữ model `gpt-4o-mini`.

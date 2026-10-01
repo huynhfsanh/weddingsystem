@@ -14,6 +14,7 @@ const schema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
   OPENAI_API_KEY: optionalString,
   OPENAI_MODEL: optionalString,
+  OPENAI_BASE_URL: z.string().url().optional().transform((value) => value?.replace(/\/$/, "")),
   OPENAI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
   OPENAI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(800),
   CLOUDINARY_CLOUD_NAME: optionalString,

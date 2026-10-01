@@ -92,10 +92,11 @@ Hãy đổi mật khẩu và secret trước khi dùng ngoài môi trường ph�
 
 ```dotenv
 OPENAI_API_KEY=
-OPENAI_MODEL=
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_BASE_URL=
 ```
 
-Chatbot gọi Responses API ở backend. Khi chưa có hai biến trên, chatbot dùng FAQ và dữ liệu gói cưới từ MySQL.
+Chatbot gọi Responses API ở backend, nạp context trực tiếp từ gói cưới, combo thực đơn và dữ liệu hợp đồng/thanh toán của khách đang đăng nhập. Khi AI tạm lỗi, backend dùng bộ nhận diện ý định và fallback dữ liệu MySQL; chatbot không dùng bảng FAQ làm nguồn trả lời. Kịch bản prompt nằm ở `docs/CHATBOT_PROMPT.md`.
 
 ### Google Maps
 
@@ -169,7 +170,7 @@ npm run db:seed
 
 - `db:generate`: tạo Prisma Client.
 - `db:migrate`: áp dụng migration ở môi trường phát triển.
-- `db:seed`: tạo role, tài khoản, gói cưới, danh mục, đơn giá và FAQ mẫu.
+- `db:seed`: tạo role, tài khoản, gói cưới, danh mục, đơn giá và dữ liệu tham khảo hệ thống.
 
 ### Tạo database bằng một file SQL
 
@@ -280,9 +281,9 @@ npm run db:seed
 
 Kiểm tra `VITE_GOOGLE_MAPS_API_KEY`, bật Maps JavaScript API, Places API và giới hạn đúng domain. Sau khi đổi biến Vite cần build lại frontend.
 
-### Chatbot chỉ trả lời FAQ
+### Chatbot không trả lời được
 
-Đây là hành vi dự kiến khi thiếu `OPENAI_API_KEY` hoặc `OPENAI_MODEL`. Thêm đủ hai biến và khởi động lại backend.
+Kiểm tra `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` và khởi động lại backend. Khi AI tạm lỗi, chatbot vẫn phải trả lời từ dữ liệu gói cưới, combo, hợp đồng và thanh toán trong MySQL.
 
 ### Webhook không được xác thực
 

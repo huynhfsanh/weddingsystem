@@ -387,6 +387,7 @@ CREATE TABLE `chatbot_messages` (
     `conversation_id` VARCHAR(191) NOT NULL,
     `role` ENUM('USER', 'ASSISTANT', 'SYSTEM') NOT NULL,
     `content` TEXT NOT NULL,
+    `media` JSON NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `chatbot_messages_conversation_id_created_at_idx`(`conversation_id`, `created_at`),

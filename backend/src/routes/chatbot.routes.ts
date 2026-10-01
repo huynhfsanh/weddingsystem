@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 import { authenticate } from "../middlewares/auth.js";
@@ -31,10 +32,10 @@ router.post("/conversations/:id/messages", asyncHandler(async (req, res) => {
   const { message } = z.object({ message: z.string().trim().min(1).max(2000) }).parse(req.body);
   const conversation = await ownedConversation(req.params.id!, req.auth!.userId);
   await prisma.chatbotMessage.create({ data: { conversationId: conversation.id, role: "USER", content: message } });
-  const answer = await answerChatMessage(message, conversation.messages);
-  const data = await prisma.chatbotMessage.create({ data: { conversationId: conversation.id, role: "ASSISTANT", content: answer } });
+  const answer = await answerChatMessage(message, conversation.messages, req.auth!.userId);
+  const data = await prisma.chatbotMessage.create({ data: { conversationId: conversation.id, role: "ASSISTANT", content: answer.content, media: JSON.parse(JSON.stringify(answer.media)) as Prisma.InputJsonValue } });
   await prisma.chatbotConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
-  res.status(201).json({ success: true, data });
+  res.status(201).json({ success: true, data: { ...data, media: answer.media } });
 }));
 router.delete("/conversations/:id", asyncHandler(async (req, res) => {
   await ownedConversation(req.params.id!, req.auth!.userId);
